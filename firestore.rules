@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // User profiles: Only owners can read/write their own profiles. Admins can see everyone.
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Tasks/Projects: 
+    // - Clients can only see their own tasks.
+    // - Editors can see tasks assigned to them.
+    // - Admin sees all.
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated() && (
+        resource.data.clientId == request.auth.uid || 
+        resource.data.assignedEditorId == request.auth.uid || 
+        isAdmin()
+      );
+      allow write: if isAuthenticated() && (
+        resource.data.clientId == request.auth.uid || 
+        isAdmin()
+      );
+    }
+
+    // Activity Logs: Viewable by assigned parties and admins.
+    match /activity_logs/{logId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin()
+      );
+      allow write: if isAuthenticated();
+    }
+
+    // Messages
+    match /messages/{messageId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Global Notices
+    match /notices/{noticeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

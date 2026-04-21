@@ -1,26 +1,73 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-cmd-card: #0A0A0A;
+  --color-cmd-border: #1A1A1A;
+  --color-insta-purple: #833ab4;
+  --color-insta-red: #fd1d1d;
+  --color-insta-orange: #fcb045;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  
+  /* Utilities for gradients */
+  --bg-insta-gradient: linear-gradient(to top right, var(--color-insta-purple), var(--color-insta-red), var(--color-insta-orange));
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+*, ::before, ::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --background: #000000;
+  --foreground: #ffffff;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #000000;
 }
 
 body {
-  background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Command Center Card - Standardized Global Node */
+.cmd-card {
+  background: #0A0A0A;
+  border: 0.5px solid #27272a;
+  border-radius: 1rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cmd-card:hover {
+  border-color: #3f3f46;
+}
+
+.text-gradient {
+  background: var(--bg-insta-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.font-number {
+  font-family: var(--font-mono);
+  letter-spacing: -0.05em;
+}
+
+/* Scrollbar hiding but keeping functionality where needed */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
