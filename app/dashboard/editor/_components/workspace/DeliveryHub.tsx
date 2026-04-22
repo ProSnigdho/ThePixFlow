@@ -44,9 +44,25 @@ export function DeliveryHub({ projectId }: DeliveryProps) {
     return () => unsubscribe();
   }, [projectId, activeFileId]);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const handleUpload = async (file: File) => {
     if (!file) return;
     setUploading(true);
+
+    // Cancel any existing upload if triggered again
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
 
     try {
       // 1. Get Resumable Upload URL from our API
@@ -57,6 +73,7 @@ export function DeliveryHub({ projectId }: DeliveryProps) {
           fileName: file.name,
           fileType: file.type,
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!initRes.ok) {
@@ -67,10 +84,10 @@ export function DeliveryHub({ projectId }: DeliveryProps) {
       const { uploadUrl } = await initRes.json();
 
       // 2. Upload directly to Google Drive via the resumable URL
-      // We use XHR to track progress if needed, but fetch is simpler for now
       const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
         body: file,
+        signal: abortControllerRef.current.signal,
       });
 
       if (!uploadRes.ok) throw new Error('Failed to upload file to Google Drive');
@@ -88,14 +105,19 @@ export function DeliveryHub({ projectId }: DeliveryProps) {
           projectId,
           webViewLink: `https://drive.google.com/file/d/${fileId}/view`,
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!syncRes.ok) throw new Error('Failed to sync with database');
 
       setActiveFileId(fileId);
     } catch (error: any) {
-      console.error('Upload error:', error);
-      alert(`Upload failed: ${error.message}`);
+      if (error.name === 'AbortError') {
+        console.log('Upload aborted');
+      } else {
+        console.error('Upload error:', error);
+        alert(`Upload failed: ${error.message}`);
+      }
     } finally {
       setUploading(false);
     }

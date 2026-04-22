@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CloudUpload, ChevronLeft, Calendar, FileText, Loader2, CheckCircle2 } from "lucide-react";
@@ -23,11 +23,27 @@ export default function NewProjectPage() {
     deadline: ""
   });
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !formData.title || !user) return;
 
     setLoading(true);
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       // 1. Get Resumable Upload URL
       const initRes = await fetch('/api/upload/resumable', {
@@ -37,6 +53,7 @@ export default function NewProjectPage() {
           fileName: file.name,
           fileType: file.type,
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!initRes.ok) {
@@ -50,6 +67,7 @@ export default function NewProjectPage() {
       const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
         body: file,
+        signal: abortControllerRef.current.signal,
       });
 
       if (!uploadRes.ok) throw new Error('Drive upload failed');
@@ -72,8 +90,12 @@ export default function NewProjectPage() {
 
       router.push(`/dashboard/client/projects/${docRef.id}`);
     } catch (error: any) {
-      console.error("Project creation failed:", error);
-      alert(`Failed to create project: ${error.message}`);
+      if (error.name === 'AbortError') {
+        console.log('Project creation upload aborted');
+      } else {
+        console.error("Project creation failed:", error);
+        alert(`Failed to create project: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
