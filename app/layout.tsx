@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: "ThePixFlow - Video Agency SaaS",
   description: "Manage your video editing projects seamlessly.",
   verification: {
-    google: "google9fd351aad1206a09",
+    google: "995Q0bZjyfYBKVRTpp4XRdLtR-fniSYPV3vj8GYD_Ds",
   },
 };
 
