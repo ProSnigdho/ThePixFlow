@@ -11,6 +11,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "ThePixFlow - Video Agency SaaS",
   description: "Manage your video editing projects seamlessly.",
+  verification: {
+    google: "google9fd351aad1206a09",
+  },
 };
 
 export default function RootLayout({
@@ -21,9 +24,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} h-full antialiased dark overflow-hidden`}
+      className={`${inter.variable} min-h-full antialiased dark`}
     >
-      <body className="h-screen w-screen bg-black text-white overflow-hidden selection:bg-[#fd1d1d]/30">
+      <body className="min-h-screen w-full bg-black text-white selection:bg-[#fd1d1d]/30 overflow-x-hidden">
         <Providers>{children}</Providers>
       </body>
     </html>
