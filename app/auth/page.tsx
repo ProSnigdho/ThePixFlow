@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "@/firebase/config";
+import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GradientButton } from "@/components/ui/GradientButton";
 import { Input } from "@/components/ui/Input";
@@ -100,13 +101,22 @@ export default function AuthPage() {
             </GradientButton>
           </form>
 
-          <div className="text-center mt-6">
+          <div className="text-center mt-6 space-y-4">
             <button
               onClick={() => setIsLogin(!isLogin)}
               className="text-sm text-gray-400 hover:text-white transition-colors"
             >
               {isLogin ? "Need an account? Sign up" : "Already have an account? Sign in"}
             </button>
+
+            <div className="pt-4 border-t border-white/5 flex justify-center gap-6">
+              <Link href="/privacy" className="text-[10px] font-bold text-zinc-600 hover:text-zinc-400 uppercase tracking-widest transition-colors">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="text-[10px] font-bold text-zinc-600 hover:text-zinc-400 uppercase tracking-widest transition-colors">
+                Terms of Service
+              </Link>
+            </div>
           </div>
         </div>
       </GlassCard>
