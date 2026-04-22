@@ -29,20 +29,34 @@ export default function NewProjectPage() {
 
     setLoading(true);
     try {
-      // 1. Upload to Drive
-      const uploadFormData = new FormData();
-      uploadFormData.append("file", file);
-      uploadFormData.append("projectId", "temp"); // temporary tie
-
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: uploadFormData,
+      // 1. Get Resumable Upload URL
+      const initRes = await fetch('/api/upload/resumable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+        }),
       });
 
-      if (!uploadRes.ok) throw new Error("Drive upload failed");
-      const driveData = await uploadRes.json();
+      if (!initRes.ok) {
+        const err = await initRes.json();
+        throw new Error(err.error || 'Failed to initialize Drive session');
+      }
 
-      // 2. Save to Firestore
+      const { uploadUrl } = await initRes.json();
+
+      // 2. Upload to Drive
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+      });
+
+      if (!uploadRes.ok) throw new Error('Drive upload failed');
+      const driveData = await uploadRes.json();
+      const fileId = driveData.id;
+
+      // 3. Save to Firestore
       const docRef = await addDoc(collection(db, "tasks"), {
         title: formData.title,
         instructions: formData.instructions,
@@ -52,14 +66,14 @@ export default function NewProjectPage() {
         status: "PENDING",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        sourceFileId: driveData.fileId,
-        sourceWebViewLink: driveData.webViewLink
+        sourceFileId: fileId,
+        sourceWebViewLink: `https://drive.google.com/file/d/${fileId}/view`
       });
 
       router.push(`/dashboard/client/projects/${docRef.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Project creation failed:", error);
-      alert("Failed to create project. Please check your connection.");
+      alert(`Failed to create project: ${error.message}`);
     } finally {
       setLoading(false);
     }

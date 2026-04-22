@@ -48,30 +48,54 @@ export function DeliveryHub({ projectId }: DeliveryProps) {
     if (!file) return;
     setUploading(true);
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('projectId', projectId);
-
     try {
-      const response = await fetch('/api/upload', {
+      // 1. Get Resumable Upload URL from our API
+      const initRes = await fetch('/api/upload/resumable', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+        }),
       });
 
-      if (!response.ok) throw new Error('Upload failed');
-      
-      const data = await response.json();
-      
-      // Update Project Status to IN_REVIEW
-      await updateDoc(doc(db, "tasks", projectId), {
-        status: "IN_REVIEW",
-        updatedAt: serverTimestamp()
+      if (!initRes.ok) {
+        const err = await initRes.json();
+        throw new Error(err.error || 'Failed to initialize upload session');
+      }
+
+      const { uploadUrl } = await initRes.json();
+
+      // 2. Upload directly to Google Drive via the resumable URL
+      // We use XHR to track progress if needed, but fetch is simpler for now
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
       });
 
-      setActiveFileId(data.fileId);
-    } catch (error) {
+      if (!uploadRes.ok) throw new Error('Failed to upload file to Google Drive');
+      
+      const driveData = await uploadRes.json();
+      const fileId = driveData.id;
+
+      // 3. Sync with Firestore via our API
+      const syncRes = await fetch('/api/upload/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileId,
+          fileName: file.name,
+          projectId,
+          webViewLink: `https://drive.google.com/file/d/${fileId}/view`,
+        }),
+      });
+
+      if (!syncRes.ok) throw new Error('Failed to sync with database');
+
+      setActiveFileId(fileId);
+    } catch (error: any) {
       console.error('Upload error:', error);
-      alert('Failed to upload video to Google Drive');
+      alert(`Upload failed: ${error.message}`);
     } finally {
       setUploading(false);
     }
