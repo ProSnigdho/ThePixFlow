@@ -78,38 +78,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!authInitialized || loading) return;
 
-    const authPaths = ["/auth"];
-    const isAuthPage = authPaths.includes(pathname);
+    const publicPaths = ["/", "/auth", "/privacy", "/terms"];
+    const isPublicPage = publicPaths.includes(pathname);
+    const isAuthPage = pathname === "/auth";
     const isPendingPage = pathname === "/pending";
 
-    // Unauthenticated -> Auth Page
+    // 1. Unauthenticated -> Only allow Public Pages
     if (!user) {
-      if (!isAuthPage) router.push("/auth");
+      if (!isPublicPage) {
+        router.push("/auth");
+      }
       return;
     }
 
-    // Pending Approval -> Pending Page
+    // 2. Pending Approval -> Only allow Pending or Public Pages
     if (user && !isApproved) {
-      if (!isPendingPage) router.push("/pending");
+      if (!isPendingPage && !isPublicPage) {
+        router.push("/pending");
+      }
       return;
     }
 
-    // Authenticated & Approved
+    // 3. Authenticated & Approved
     if (user && isApproved) {
-      // 1. Protect specific dashboard roots (RBAC)
+      // Protect specific dashboard roots (RBAC)
       const pathParts = pathname.split("/");
       if (pathParts[1] === "dashboard") {
         const pathRole = pathParts[2];
         if (pathRole && pathRole !== role && role !== 'admin') {
-          // Unauthorized access attempt to another role's dashboard
           console.warn(`RBAC_BLOCK: User [${role}] attempted access to [${pathRole}]`);
           router.push(`/dashboard/${role}`);
           return;
         }
       }
 
-      // 2. Redirect from Auth/Landing to Dashboard
-      if (isAuthPage || isPendingPage || pathname === "/") {
+      // If user is logged in and tries to access /auth or /pending, send to dashboard
+      if (isAuthPage || isPendingPage) {
         let target = `/dashboard/${role}`;
         if (role === "admin") target = "/dashboard/admin";
         router.push(target);
