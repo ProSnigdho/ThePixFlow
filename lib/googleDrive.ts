@@ -4,14 +4,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
-
-/**
- * SECURITY GUARD: Environment variable check
- */
-if (!CLIENT_ID || !CLIENT_SECRET) {
-  console.warn("GOOGLE_DRIVE_INTEGRATION_DISABLED: Missing credentials in Environment Variables.");
-}
+const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/auth/google/callback';
 
 export const oauth2Client = new google.auth.OAuth2(
   CLIENT_ID,
@@ -20,40 +13,48 @@ export const oauth2Client = new google.auth.OAuth2(
 );
 
 /**
- * PRODUCTION-READY: Robust Drive Instance Getter
+ * PRODUCTION-READY: Google Drive API Instance with Auto-Refresh
  */
-export async function getDriveInstance(retries = 2) {
+export async function getDriveInstance(retries = 3) {
   try {
-    const configDoc = await getDoc(doc(db, 'system_config', 'google_drive'));
+    // 1. Get tokens from Firestore (stored under system_config/google_drive)
+    const configSnap = await getDoc(doc(db, 'system_config', 'google_drive'));
     
-    if (!configDoc.exists()) {
-      throw new Error('G-DRIVE_NOT_CONFIGURED: Run /api/auth/google/login first.');
+    if (!configSnap.exists()) {
+      throw new Error('GOOGLE_DRIVE_CONFIG_MISSING: No refresh token found in Firestore.');
     }
 
-    const { refresh_token } = configDoc.data();
+    const { refresh_token } = configSnap.data();
     
-    oauth2Client.setCredentials({
-      refresh_token: refresh_token,
-    });
+    if (!refresh_token) {
+      throw new Error('GOOGLE_DRIVE_TOKEN_MISSING: Refresh token is empty.');
+    }
 
+    oauth2Client.setCredentials({ refresh_token });
+
+    // 2. Return Drive instance
     return google.drive({ version: 'v3', auth: oauth2Client });
   } catch (error: any) {
+    console.error("[DRIVE_AUTH_ERROR_DETAIL]:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+    
     if (retries > 0) {
       console.warn(`Drive auth failed, retrying... (${retries} left)`);
       return getDriveInstance(retries - 1);
     }
+    
     throw new Error(`DRIVE_RESILIENCE_FAILURE: ${error.message}`);
   }
 }
 
-export async function saveRefreshToken(refreshToken: string) {
-  try {
-    await setDoc(doc(db, 'system_config', 'google_drive'), {
-      refresh_token: refreshToken,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
-  } catch (e) {
-    console.error("TOKEN_SAVE_FAILED:", e);
-    throw e;
-  }
+/**
+ * Helper to get a fresh access token (used for resumable uploads)
+ */
+export async function getDriveAccessToken() {
+  const drive = await getDriveInstance();
+  const { token } = await oauth2Client.getAccessToken();
+  return token;
 }

@@ -1,11 +1,13 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { 
+  initializeFirestore, 
+  getFirestore, 
+  enableIndexedDbPersistence,
+  CACHE_SIZE_UNLIMITED 
+} from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
-/**
- * PRODUCTION-READY: Environment-Driven Firebase Config
- * All secrets must be prefixed with NEXT_PUBLIC_ for client-side access.
- */
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -16,20 +18,28 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Check for missing critical variables in development/production
-const requiredKeys = ['apiKey', 'authDomain', 'projectId'];
-requiredKeys.forEach(key => {
-  if (!firebaseConfig[key as keyof typeof firebaseConfig]) {
-    const errorMsg = `CRITICAL_ERROR: Missing Firebase environment variable for ${key}. Check .env file.`;
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(errorMsg);
-    } else {
-      console.error(errorMsg);
-    }
-  }
-});
-
+// Singleton App Instance
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
+// Singleton Firestore Instance with unlimited cache
+export const db = !getApps().length 
+  ? initializeFirestore(app, {
+      cacheSizeBytes: CACHE_SIZE_UNLIMITED
+    })
+  : getFirestore(app);
+
+// Safe Persistence Initialization
+if (typeof window !== "undefined") {
+  enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code === "failed-precondition") {
+      // Multiple tabs open, persistence can only be enabled in one tab at a a time.
+      console.warn("Firestore Persistence: Failed-Precondition (Multiple Tabs)");
+    } else if (err.code === "unimplemented") {
+      // The current browser does not support all of the features required to enable persistence
+      console.warn("Firestore Persistence: Unimplemented");
+    }
+  });
+}
+
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const storage = getStorage(app);

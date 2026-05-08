@@ -1,17 +1,16 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from 'react';
-import { db } from '@/firebase/config';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
-import { useAuth } from '@/context/AuthContext';
-import { Play, Pause, RotateCcw, Send, Clock, User } from 'lucide-react';
-import { GlassCard } from '@/components/ui/GlassCard';
+import React, { useState, useEffect, useRef } from "react";
+import { Play, Pause, Volume2, Maximize, Clock, MessageSquare, Send, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { db } from "@/firebase/config";
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
 
 interface Comment {
   id: string;
-  time: number;
   text: string;
-  userRole: string;
+  timestamp: number;
   userName: string;
   createdAt: any;
 }
@@ -22,31 +21,29 @@ interface VideoReviewPlayerProps {
 }
 
 export function VideoReviewPlayer({ projectId, fileId }: VideoReviewPlayerProps) {
+  const { user, userData } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
-  const { user, role } = useAuth();
+  const [newComment, setNewComment] = useState("");
 
+  // 1. Fetch Comments
   useEffect(() => {
     const q = query(
-      collection(db, 'projects', projectId, 'feedback'),
-      orderBy('time', 'asc')
+      collection(db, "projects", projectId, "feedback"),
+      orderBy("createdAt", "asc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Comment[];
-      setComments(docs);
+    const unsub = onSnapshot(q, (snapshot) => {
+      setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Comment[]);
     });
 
-    return () => unsubscribe();
+    return () => unsub();
   }, [projectId]);
 
+  // 2. Video Logic
   const togglePlay = () => {
     if (videoRef.current) {
       if (isPlaying) videoRef.current.pause();
@@ -56,142 +53,162 @@ export function VideoReviewPlayer({ projectId, fileId }: VideoReviewPlayerProps)
   };
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-    }
+    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
   };
 
   const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration);
-    }
+    if (videoRef.current) setDuration(videoRef.current.duration);
   };
 
   const handleSeek = (time: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = time;
-      videoRef.current.play();
-      setIsPlaying(true);
+      setCurrentTime(time);
     }
   };
 
-  const addComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!commentText.trim() || !user) return;
-
-    await addDoc(collection(db, 'projects', projectId, 'feedback'), {
-      time: currentTime,
-      text: commentText,
-      userRole: role,
-      userName: user.displayName || 'User',
-      createdAt: serverTimestamp(),
-    });
-
-    setCommentText('');
-  };
-
-  const formatTime = (time: number) => {
-    const mins = Math.floor(time / 60);
-    const secs = Math.floor(time % 60);
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // 3. Comment Logic
+  const postComment = async () => {
+    if (!newComment.trim() || !user) return;
+
+    try {
+      await addDoc(collection(db, "projects", projectId, "feedback"), {
+        text: newComment,
+        timestamp: currentTime,
+        userId: user.uid,
+        userName: userData?.displayName || user.displayName || "Member",
+        createdAt: serverTimestamp(),
+      });
+      setNewComment("");
+    } catch (error) {
+      console.error("Error posting comment:", error);
+    }
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full max-h-[calc(100vh-120px)]">
-      {/* Video Section - 45% proportional width handled by grid-cols-12 */}
-      <div className="lg:col-span-8 flex flex-col gap-4">
-        <GlassCard className="relative overflow-hidden bg-black aspect-video flex items-center justify-center">
-          <video
+    <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6 overflow-hidden">
+      {/* Video Side */}
+      <div className="flex flex-col gap-4 min-h-0">
+        <div className="relative aspect-video bg-black rounded-3xl overflow-hidden border border-white/5 group shadow-2xl">
+          <video 
             ref={videoRef}
             src={`/api/video/stream/${fileId}`}
-            className="w-full h-full"
+            className="w-full h-full object-contain"
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
+            onClick={togglePlay}
           />
           
-          {/* Custom Controls Overlay */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-0 hover:opacity-100 transition-opacity">
-            <div className="flex items-center gap-4">
-              <button onClick={togglePlay} className="text-white">
-                {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-              </button>
-              <div className="flex-1 h-1 bg-white/20 rounded-full relative cursor-pointer">
+          {/* Custom Controls */}
+          <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex flex-col gap-4">
+              {/* Progress Bar */}
+              <div 
+                className="h-1.5 w-full bg-white/10 rounded-full cursor-pointer relative"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const percent = (e.clientX - rect.left) / rect.width;
+                  handleSeek(percent * duration);
+                }}
+              >
                 <div 
-                  className="absolute top-0 left-0 h-full bg-blue-500 rounded-full" 
+                  className="absolute inset-y-0 left-0 bg-[#1A8080] rounded-full transition-all"
                   style={{ width: `${(currentTime / duration) * 100}%` }}
                 />
+                {/* Comment Markers */}
+                {comments.map(c => (
+                  <div 
+                    key={c.id}
+                    className="absolute top-1/2 -translate-y-1/2 w-1.5 h-3 bg-orange-500 rounded-full border border-black cursor-help"
+                    style={{ left: `${(c.timestamp / duration) * 100}%` }}
+                    title={c.text}
+                  />
+                ))}
               </div>
-              <span className="text-white text-xs font-mono">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </span>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-6">
+                  <button onClick={togglePlay} className="text-white hover:text-[#1A8080] transition-colors">
+                    {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+                  </button>
+                  <div className="flex items-center gap-2 text-white/50 text-xs font-mono">
+                    <span className="text-white">{formatTime(currentTime)}</span>
+                    <span>/</span>
+                    <span>{formatTime(duration)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Volume2 size={20} className="text-white/50" />
+                  <Maximize size={20} className="text-white/50" />
+                </div>
+              </div>
             </div>
           </div>
-        </GlassCard>
+        </div>
 
-        {/* Comment Input */}
-        <GlassCard className="p-4">
-          <form onSubmit={addComment} className="flex gap-4">
-            <div className="flex items-center gap-2 px-3 py-2 bg-white/5 rounded-lg border border-white/10 text-blue-400 font-mono text-sm">
-              <Clock size={14} />
-              {formatTime(currentTime)}
-            </div>
-            <input
-              type="text"
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              placeholder="Add feedback at this timestamp..."
-              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500/50"
-            />
-            <button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors flex items-center gap-2"
-            >
-              <Send size={18} />
-              Post
-            </button>
-          </form>
-        </GlassCard>
+        {/* Quick Comment Input */}
+        <div className="flex gap-3 bg-white/5 border border-white/10 p-3 rounded-2xl">
+          <div className="flex items-center gap-2 px-3 py-1 bg-[#1A4848]/20 border border-[#1A4848]/30 rounded-lg text-[10px] font-black text-[#1A8080] uppercase">
+            <Clock size={12} /> {formatTime(currentTime)}
+          </div>
+          <input 
+            type="text"
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && postComment()}
+            placeholder="Add timestamped feedback..."
+            className="flex-1 bg-transparent border-none text-sm text-white focus:outline-none placeholder:text-zinc-600"
+          />
+          <button 
+            onClick={postComment}
+            className="p-2 bg-[#1A4848] text-white rounded-xl hover:bg-[#1A8080] transition-all"
+          >
+            <Send size={16} />
+          </button>
+        </div>
       </div>
 
-      {/* Feedback Side Panel - 27% proportional width */}
-      <GlassCard className="lg:col-span-4 flex flex-col h-full overflow-hidden">
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-          <h3 className="text-white font-semibold">Feedback Loop</h3>
-          <span className="text-white/40 text-xs">{comments.length} Comments</span>
+      {/* Sidebar Side: Feedback Feed */}
+      <div className="flex flex-col bg-black/20 border border-white/5 rounded-3xl overflow-hidden">
+        <div className="p-5 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
+          <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+            <MessageSquare size={14} className="text-orange-500" />
+            Feedback Loop
+          </h3>
+          <span className="text-[8px] bg-orange-500/10 text-orange-500 px-1.5 py-0.5 rounded font-black uppercase">{comments.length}</span>
         </div>
-        
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {comments.map((comment) => (
-            <div 
-              key={comment.id}
-              onClick={() => handleSeek(comment.time)}
-              className="group p-3 rounded-xl bg-white/5 border border-white/5 hover:border-blue-500/30 hover:bg-white/10 cursor-pointer transition-all"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
-                    <User size={12} className="text-blue-400" />
+
+        <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
+          {comments.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center opacity-20 text-center p-6">
+              <MessageSquare size={32} className="mb-2" />
+              <p className="text-[10px] font-bold uppercase tracking-widest leading-relaxed">No feedback yet.<br/>Type above to start the loop.</p>
+            </div>
+          ) : (
+            comments.map((comment) => (
+              <div 
+                key={comment.id}
+                className="group p-4 rounded-2xl bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.05] transition-all cursor-pointer"
+                onClick={() => handleSeek(comment.timestamp)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-black text-white uppercase">{comment.userName}</span>
+                  <div className="flex items-center gap-1.5 text-[9px] font-bold text-orange-500 uppercase">
+                    <Clock size={10} /> {formatTime(comment.timestamp)}
                   </div>
-                  <span className="text-xs font-medium text-white/80">{comment.userName}</span>
                 </div>
-                <span className="text-[10px] font-mono text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded">
-                  {formatTime(comment.time)}
-                </span>
+                <p className="text-xs text-zinc-400 leading-relaxed">{comment.text}</p>
               </div>
-              <p className="text-sm text-white/60 group-hover:text-white/90 transition-colors">
-                {comment.text}
-              </p>
-            </div>
-          ))}
-          
-          {comments.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-white/20 py-20">
-              <RotateCcw size={40} className="mb-4" />
-              <p className="text-center text-sm">No feedback yet.<br/>Start the review!</p>
-            </div>
+            ))
           )}
         </div>
-      </GlassCard>
+      </div>
     </div>
   );
 }

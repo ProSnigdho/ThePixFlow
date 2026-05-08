@@ -8,10 +8,13 @@
   --color-insta-purple: #833ab4;
   --color-insta-red: #fd1d1d;
   --color-insta-orange: #fcb045;
+  --color-cyan-neon: #0FF0FC;
+  --color-gold: #FFD700;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   
   /* Utilities for gradients */
-  --bg-insta-gradient: linear-gradient(to top right, var(--color-insta-purple), var(--color-insta-red), var(--color-insta-orange));
+  --bg-insta-gradient: linear-gradient(to top right, #833ab4, #fd1d1d, #fcb045);
+  --bg-cyan-gradient: linear-gradient(to bottom right, #0FF0FC, #00B4D8);
 }
 
 *, ::before, ::after {
@@ -61,6 +64,55 @@ body {
 .font-number {
   font-family: var(--font-mono);
   letter-spacing: -0.05em;
+}
+
+/* Premium Glass-morphism */
+.premium-glass {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.premium-glass:hover {
+  border-color: rgba(15, 240, 252, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.text-cyan-neon {
+  color: #0FF0FC;
+  text-shadow: 0 0 10px rgba(15, 240, 252, 0.3);
+}
+
+.bg-cyan-neon {
+  background-color: #0FF0FC;
+  box-shadow: 0 0 15px rgba(15, 240, 252, 0.4);
+}
+
+.insta-gradient-bg {
+  background: var(--bg-insta-gradient);
+}
+
+.insta-gradient-border {
+  position: relative;
+  border-radius: inherit;
+}
+
+.insta-gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--bg-insta-gradient);
+  -webkit-mask: 
+     linear-gradient(#fff 0 0) content-box, 
+     linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
 }
 
 /* Scrollbar hiding but keeping functionality where needed */

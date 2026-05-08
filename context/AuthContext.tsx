@@ -14,17 +14,21 @@ export type Role = "client" | "editor" | "admin" | "sales" | "marketing" | null;
 interface AuthContextType {
   user: User | null;
   role: Role;
+  userData: any | null;
   isApproved: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
+  updateProfile: (data: { displayName?: string; photoURL?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   role: null,
+  userData: null,
   isApproved: false,
   loading: true,
   signOut: async () => {},
+  updateProfile: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -32,6 +36,7 @@ export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role>(null);
+  const [userData, setUserData] = useState<any | null>(null);
   const [isApproved, setIsApproved] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [authInitialized, setAuthInitialized] = useState(false);
@@ -54,25 +59,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 2. Handle User Data Listener (Decoupled & Robust)
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) return;
 
+    let isSubscribed = true;
     const unsubscribe = onSnapshot(doc(db, "users", user.uid), (userDoc) => {
+      if (!isSubscribed) return;
+      
       if (userDoc.exists()) {
         const data = userDoc.data();
+        setUserData(data);
         setRole(data.role || "client");
         setIsApproved(data.isApproved || data.role === "admin");
       } else {
+        setUserData(null);
         setRole(null);
         setIsApproved(false);
       }
       setLoading(false);
     }, (error) => {
+      if (error.message.includes('INTERNAL ASSERTION FAILED')) return;
       console.error("FIRE_AUTH_SYNC_FAIL:", error);
       setLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [user]);
+    return () => {
+      isSubscribed = false;
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [user?.uid]);
 
   // 3. PRODUCTION-GRADE: Strict Route Guarding & RBAC
   useEffect(() => {
@@ -105,7 +119,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const pathParts = pathname.split("/");
       if (pathParts[1] === "dashboard") {
         const pathRole = pathParts[2];
-        if (pathRole && pathRole !== role && role !== 'admin') {
+        const isSharedDashboardRoute = ["messages", "settings", "announcements"].includes(pathRole);
+        
+        if (pathRole && !isSharedDashboardRoute && pathRole !== role && role !== 'admin') {
           console.warn(`RBAC_BLOCK: User [${role}] attempted access to [${pathRole}]`);
           router.push(`/dashboard/${role}`);
           return;
@@ -131,8 +147,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateProfile = async (data: { displayName?: string; photoURL?: string }) => {
+    if (!user) return;
+    try {
+      // 1. Update Firestore
+      const { updateDoc } = await import("firebase/firestore");
+      await updateDoc(doc(db, "users", user.uid), {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+      
+      // 2. Update Firebase Auth Profile
+      const { updateProfile: firebaseUpdateProfile } = await import("firebase/auth");
+      await firebaseUpdateProfile(user, data);
+    } catch (e) {
+      console.error("UPDATE_PROFILE_FAIL:", e);
+      throw e;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, role, isApproved, loading, signOut }}>
+    <AuthContext.Provider value={{ user, role, userData, isApproved, loading, signOut, updateProfile }}>
       <AnimatePresence mode="wait">
         {loading ? (
           <LoadingOverlay key="loading" />

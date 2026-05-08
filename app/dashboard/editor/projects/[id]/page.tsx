@@ -16,7 +16,6 @@ import { db } from "@/firebase/config";
 import { doc, onSnapshot, updateDoc, collection, query, orderBy, limit, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { VideoReviewPlayer } from "@/components/workspace/VideoReviewPlayer";
 import { DeliveryHub } from "../../_components/workspace/DeliveryHub";
 
 export default function EditorProjectWorkspace() {
@@ -29,17 +28,24 @@ export default function EditorProjectWorkspace() {
   useEffect(() => {
     if (!id || !user) return;
     
-    const unsub = onSnapshot(doc(db, "tasks", id as string), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (role === "editor" && data.assignedEditorId !== user.uid) {
-          router.push("/dashboard/editor");
-          return;
+    const unsub = onSnapshot(
+      doc(db, "projects", id as string), 
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (role === "editor" && data.editorId !== user.uid) {
+            router.push("/dashboard/editor");
+            return;
+          }
+          setProject({ id: docSnap.id, ...data });
         }
-        setProject({ id: docSnap.id, ...data });
+        setLoading(false);
+      },
+      (error) => {
+        console.error("PROJECT_WORKSPACE_ERROR:", error);
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    );
 
     return () => unsub();
   }, [id, user, role, router]);
@@ -75,23 +81,23 @@ export default function EditorProjectWorkspace() {
           </button>
           <div>
             <h2 className="text-base font-black text-white uppercase tracking-tighter flex items-center gap-2">
-              {project.title}
-              <span className="text-[10px] font-mono text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded italic">Production Mode</span>
+              {project.projectName || project.title}
+              <span className="text-[10px] font-mono text-[#1A8080] bg-[#1A4848]/10 px-2 py-0.5 rounded italic">Production Active</span>
             </h2>
             <div className="flex items-center gap-4 mt-0.5">
               <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
-                <User size={12} /> {project.clientName || "Corporate Client"}
+                <User size={12} /> {project.clientName || "Direct Client"}
               </span>
-              <span className="text-[10px] font-mono text-orange-500 uppercase tracking-widest flex items-center gap-1.5">
-                <Clock size={12} /> {calculateCountdown(project.deadline)}
+              <span className="text-[10px] font-mono text-amber-500 uppercase tracking-widest flex items-center gap-1.5">
+                <Clock size={12} /> {calculateCountdown(project.desiredDelivery || project.deadline)}
               </span>
             </div>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
-          <div className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-            <ShieldCheck size={14} /> Identity Verified
+          <div className="px-4 py-2 rounded-xl bg-[#1A4848]/10 border border-[#1A4848]/20 text-[#1A8080] text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+            <ShieldCheck size={14} /> Assigned Verified
           </div>
         </div>
       </div>
@@ -103,7 +109,7 @@ export default function EditorProjectWorkspace() {
         <GlassCard className="flex flex-col border-white/[0.03] overflow-hidden bg-black/20">
           <div className="p-4 border-b border-white/[0.05] bg-black/40">
             <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-              <FileText size={14} className="text-blue-500" />
+              <FileText size={14} className="text-[#1A8080]" />
               Creative Brief
             </h3>
           </div>
@@ -149,7 +155,7 @@ export default function EditorProjectWorkspace() {
 
         {/* Center: Delivery Hub (45fr) */}
         <div className="min-h-0 overflow-hidden">
-          <DeliveryHub projectId={project.id} />
+          <DeliveryHub projectId={project.id} currentProject={project} />
         </div>
 
         {/* Right: Feedback Loop (27fr) */}

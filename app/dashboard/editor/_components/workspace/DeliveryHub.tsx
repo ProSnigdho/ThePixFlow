@@ -18,9 +18,10 @@ interface Delivery {
 
 interface DeliveryProps {
   projectId: string;
+  currentProject?: any;
 }
 
-export function DeliveryHub({ projectId }: DeliveryProps) {
+export function DeliveryHub({ projectId, currentProject }: DeliveryProps) {
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -28,20 +29,30 @@ export function DeliveryHub({ projectId }: DeliveryProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!projectId) return;
+
+    let isSubscribed = true;
     const q = query(
       collection(db, "projects", projectId, "deliveries"),
       orderBy("uploadedAt", "desc")
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!isSubscribed) return;
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Delivery[];
       setDeliveries(docs);
       if (docs.length > 0 && !activeFileId) {
         setActiveFileId(docs[0].fileId);
       }
+    }, (error) => {
+      if (error.message.includes('INTERNAL ASSERTION FAILED')) return;
+      console.error("DELIVERY_SYNC_ERROR:", error);
     });
 
-    return () => unsubscribe();
+    return () => {
+      isSubscribed = false;
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, [projectId, activeFileId]);
 
   const abortControllerRef = useRef<AbortController | null>(null);

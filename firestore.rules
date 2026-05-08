@@ -2,59 +2,128 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper functions
+    // --- HELPER FUNCTIONS ---
     function isAuthenticated() {
       return request.auth != null;
     }
     
     function isAdmin() {
-      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // User profiles: Only owners can read/write their own profiles. Admins can see everyone.
+    // --- COLLECTION RULES ---
+
+    // User Profiles
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isOwner(userId) || isAdmin();
     }
 
-    // Tasks/Projects: 
-    // - Clients can only see their own tasks.
-    // - Editors can see tasks assigned to them.
-    // - Admin sees all.
-    match /tasks/{taskId} {
+    // Projects & Tasks (Consolidated Rules)
+    match /projects/{projectId} {
       allow read: if isAuthenticated() && (
         resource.data.clientId == request.auth.uid || 
+        resource.data.editorId == request.auth.uid || 
         resource.data.assignedEditorId == request.auth.uid || 
         isAdmin()
       );
-      allow write: if isAuthenticated() && (
+      
+      allow create: if isAuthenticated() && (
+        request.resource.data.clientId == request.auth.uid || isAdmin()
+      );
+      
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
         resource.data.clientId == request.auth.uid || 
-        isAdmin()
+        resource.data.editorId == request.auth.uid ||
+        resource.data.assignedEditorId == request.auth.uid
       );
+      
+      allow delete: if isAdmin();
     }
 
-    // Activity Logs: Viewable by assigned parties and admins.
-    match /activity_logs/{logId} {
+    match /tasks/{taskId} {
       allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || 
+        resource.data.clientId == request.auth.uid || 
+        resource.data.editorId == request.auth.uid || 
+        resource.data.assignedEditorId == request.auth.uid || 
         isAdmin()
       );
-      allow write: if isAuthenticated();
+      
+      allow create: if isAuthenticated() && (
+        request.resource.data.clientId == request.auth.uid || isAdmin()
+      );
+      
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.clientId == request.auth.uid || 
+        resource.data.editorId == request.auth.uid ||
+        resource.data.assignedEditorId == request.auth.uid
+      );
+      
+      allow delete: if isAdmin();
     }
 
-    // Messages
-    match /messages/{messageId} {
-      allow read, write: if isAuthenticated();
+    // Invoices
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated() && (resource.data.clientId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
     }
-    
-    // Global Notices
-    match /notices/{noticeId} {
+
+    // Conversations & Global Messaging
+    match /conversations/{convId} {
+      allow read, write: if isAuthenticated() && (
+        (resource != null && request.auth.uid in resource.data.participants) || 
+        (resource == null && request.auth.uid in request.resource.data.participants) ||
+        convId == 'admin_' + request.auth.uid ||
+        isAdmin()
+      );
+      
+      match /messages/{msgId} {
+        allow read, write: if isAuthenticated() && (
+          get(/databases/$(database)/documents/conversations/$(convId)).data.participants.hasAny([request.auth.uid]) ||
+          convId == 'admin_' + request.auth.uid ||
+          isAdmin()
+        );
+      }
+    }
+
+    // Announcements (Notification Center)
+    match /announcements/{id} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    // Payment Chat (Queries)
+    match /paymentQueries/{chatId} {
+      allow read, write: if isAuthenticated() && (chatId == 'payment_admin_' + request.auth.uid || isAdmin());
+      
+      match /messages/{msgId} {
+        allow read, write: if isAuthenticated() && (chatId == 'payment_admin_' + request.auth.uid || isAdmin());
+      }
+    }
+
+    // Leads & Marketing CRM
+    match /leads/{leadId} {
+      allow read, write: if isAdmin() || 
+        (isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'marketing');
+    }
+
+    // Content Planner (Marketing)
+    match /contentPosts/{postId} {
+      allow read, write: if isAdmin() ||
+        (isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'marketing');
+    }
+
+    // Competitor Intel (Marketing)
+    match /competitors/{compId} {
+      allow read, write: if isAdmin() ||
+        (isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'marketing');
     }
   }
 }

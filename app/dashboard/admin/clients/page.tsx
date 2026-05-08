@@ -20,11 +20,8 @@ export default function AdminClientsPage() {
   ];
 
   return (
-    <div className="h-full flex flex-col gap-6 p-6 animate-in fade-in slide-in-from-bottom-2 duration-500 overflow-hidden">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-black tracking-tighter uppercase">Client <span className="text-zinc-500">Registry</span></h1>
-        <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest leading-none">Portfolio Management & Growth</p>
-      </div>
+    <div className="h-full flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500 overflow-hidden">
+      <div className="flex-1 min-h-0">
 
       <div className="flex-1 min-h-0">
         <HighDensityTable 
@@ -37,5 +34,6 @@ export default function AdminClientsPage() {
         />
       </div>
     </div>
-  );
+  </div>
+);
 }

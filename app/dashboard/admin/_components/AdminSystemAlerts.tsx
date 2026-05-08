@@ -4,7 +4,7 @@ import React from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Info, Bell, UserPlus, CreditCard } from "lucide-react";
 
-export function AdminSystemAlerts() {
+export function AdminSystemAlerts({ tasks }: { tasks?: any[] }) {
   const alerts = [
     { id: 1, type: "client", msg: "New Client Signup: Zenith Media", time: "12m ago" },
     { id: 2, type: "billing", msg: "Payment Recieved: Apple Event ($5k)", time: "45m ago" },

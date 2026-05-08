@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Sidebar } from "./Sidebar";
+import { TopBar } from "./TopBar";
 import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -20,9 +21,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#833ab4]/5 blur-[120px] rounded-full pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[#fcb045]/5 blur-[120px] rounded-full pointer-events-none" />
 
-        <div className="flex-1 relative z-10 p-6 h-full overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div
+        <div className="flex-1 relative z-10 px-8 py-4 h-full overflow-hidden flex flex-col">
+          <TopBar />
+          
+          <div className="flex-1 min-h-0 relative">
+            <AnimatePresence mode="wait">
+              <motion.div
               key={role}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -33,6 +37,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {children}
             </motion.div>
           </AnimatePresence>
+        </div>
         </div>
       </main>
 
